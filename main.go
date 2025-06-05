@@ -9,6 +9,10 @@ import (
 func main() {
 	port := "2525"
 
+	if err := server.InitDB(); err != nil {
+		panic("failed to connect to database: " + err.Error())
+	}
+
 	ln, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		panic(err)

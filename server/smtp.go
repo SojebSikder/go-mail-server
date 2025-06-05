@@ -33,6 +33,9 @@ func HandleSMTP(conn net.Conn) {
 		if dataMode {
 			if line == "." {
 				// Email received
+				// Save to database
+				SaveEmailToDB(from, to, data.String())
+				// Print to console
 				fmt.Println("=== New Email ===")
 				fmt.Println("From:", from)
 				fmt.Println("To:", to)
