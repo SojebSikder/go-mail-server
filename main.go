@@ -8,7 +8,7 @@ import (
 
 func main() {
 	port := "2525"
-	fmt.Printf("Starting SMTP server on port %s...\n", port)
+
 	ln, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		panic(err)

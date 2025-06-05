@@ -7,10 +7,10 @@ import (
 )
 
 func main() {
-	from := "sojebsikder10@gmail.com"
-	to := "sojebsikder@gmail.com"
+	from := "user1@example.com"
+	to := "user1@example.com"
 	subject := "Test Email"
-	body := "Hello from smtp server"
+	body := "This is the body"
 
 	// Compose the email message
 	msg := strings.Join([]string{
@@ -21,7 +21,7 @@ func main() {
 		body,
 	}, "\r\n")
 
-	// Connect to the local SMTP server on port 2525 without authentication
+	// Connect to the local SMTP server on port 2525
 	err := smtp.SendMail("localhost:2525", nil, from, []string{to}, []byte(msg))
 	if err != nil {
 		log.Fatal(err)
