@@ -1,22 +1,28 @@
 # Description
 
-SMTP mail server created using go.
+SMTP and IMAP mail server created using go.
 
 ## Usage
 
-Run the SMTP server
+Run the SMTP, IMAP server:
 
 ```bash
 go run .
 ```
 
-Run SMTP client to send email
+Run SMTP client to send email:
 
 ```bash
-go run client/client.go
+go run client/smtp/smtpclient.go
 ```
 
-To view emails run the following command
+To fetch emails:
+
+```bash
+go run client/imap/imapclient.go
+```
+
+To view emails run the following command:
 
 ```bash
 go run web/web.go

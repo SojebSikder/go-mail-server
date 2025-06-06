@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+func main() {
+	sendMail()
+}
+
 func sendMail() {
 	from := "user1@example.com"
 	to := "user1@example.com"
@@ -28,9 +32,4 @@ func sendMail() {
 	}
 
 	log.Println("Email sent successfully")
-}
-
-func main() {
-	sendMail()
-	log.Println("SMTP client finished execution")
 }
