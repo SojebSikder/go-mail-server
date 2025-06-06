@@ -37,3 +37,12 @@ func SaveEmailToDB(from, to, body string) error {
 	}
 	return db.Create(&email).Error
 }
+
+func GetEmailsFor(receiver string) ([]Email, error) {
+	var emails []Email
+	err := db.Where("receiver = ?", receiver).Order("received_at desc").Find(&emails).Error
+	if err != nil {
+		return nil, err
+	}
+	return emails, nil
+}

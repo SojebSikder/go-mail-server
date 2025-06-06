@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func main() {
+func sendMail() {
 	from := "user1@example.com"
 	to := "user1@example.com"
 	subject := "Test Email"
@@ -28,4 +28,9 @@ func main() {
 	}
 
 	log.Println("Email sent successfully")
+}
+
+func main() {
+	sendMail()
+	log.Println("SMTP client finished execution")
 }

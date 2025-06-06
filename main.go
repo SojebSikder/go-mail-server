@@ -1,30 +1,46 @@
 package main
 
 import (
-	"fmt"
-	"net"
+	"context"
+	"os/signal"
 	server "sojebsikder/go-smtp-server/server"
+	"sync"
+	"syscall"
 )
 
 func main() {
-	port := "2525"
+	smtpPort := "2525"
+	imapPort := "1430"
 
 	if err := server.InitDB(); err != nil {
 		panic("failed to connect to database: " + err.Error())
 	}
 
-	ln, err := net.Listen("tcp", ":"+port)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("SMTP server listening on port", port)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			fmt.Println("Failed to accept:", err)
-			continue
-		}
-		go server.HandleSMTP(conn)
-	}
+	var wg sync.WaitGroup
+
+	// Start SMTP server
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		server.CreateSMTPConnection(ctx, smtpPort)
+	}()
+
+	// Start IMAP server on a different port
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		server.CreateIMAPConnection(ctx, imapPort)
+	}()
+
+	// Wait for shutdown signal
+	<-ctx.Done()
+	println("Shutting down servers...")
+
+	// wait for all goroutines to finish
+	wg.Wait()
+	println("Servers shut down gracefully.")
+
 }

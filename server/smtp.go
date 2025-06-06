@@ -2,11 +2,47 @@ package server
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"net"
 	"strings"
 )
 
+func CreateSMTPConnection(ctx context.Context, smtpPort string) {
+	ln, err := net.Listen("tcp", ":"+smtpPort)
+	if err != nil {
+		panic("failed to start SMTP server: " + err.Error())
+	}
+	fmt.Println("SMTP server listening on port", smtpPort)
+
+	for {
+		connChan := make(chan net.Conn)
+		errChan := make(chan error)
+
+		go func() {
+			conn, err := ln.Accept()
+			if err != nil {
+				errChan <- err
+			} else {
+				connChan <- conn
+			}
+		}()
+
+		select {
+		case <-ctx.Done():
+			ln.Close()
+			return
+		case conn := <-connChan:
+			go HandleSMTP(conn)
+		case err := <-errChan:
+			fmt.Println("SMTP accept error:", err)
+		}
+	}
+}
+
+// HandleSMTP handles incoming SMTP connections
+// It processes commands like HELO, MAIL FROM, RCPT TO, DATA, and QUIT.
+// It saves received emails to a database and prints them to the console.
 func HandleSMTP(conn net.Conn) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
