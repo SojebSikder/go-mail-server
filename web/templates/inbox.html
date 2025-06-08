@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Inbox</title>
+</head>
+
+<body>
+    <h1>Inbox</h1>
+
+    <form action="/delete_all" method="POST" onsubmit="return confirm('Are you sure you want to delete all emails?');">
+        <button type="submit">Delete All Emails</button>
+    </form>
+
+    <ul>
+        {{range .Emails}}
+        <li>
+            <strong>From:</strong> {{.Sender}}<br>
+            <strong>To:</strong> {{.Receiver}}<br>
+            <strong>Received:</strong> {{.ReceivedAt}}<br>
+            <pre>{{.Body}}</pre>
+
+            <form action="/delete?id={{.ID}}" method="POST" style="margin-top: 5px;">
+                <button type="submit" onclick="return confirm('Delete email ID {{.ID}}?')">Delete</button>
+            </form>
+        </li>
+        <hr>
+        {{end}}
+    </ul>
+
+    <a href="/emails?page={{.NextPage}}">Next Page</a>
+</body>
+
+</html>

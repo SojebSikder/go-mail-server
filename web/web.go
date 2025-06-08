@@ -2,28 +2,29 @@ package web
 
 import (
 	"context"
-	"fmt"
-	"html"
+	"html/template"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
 
 	server "sojebsikder/go-smtp-server/server"
-
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 // StartWebServer initializes the web server to display emails
 func StartWebServer(ctx context.Context, port string) {
 	// Initialize the database connection
-	db, err := gorm.Open(sqlite.Open("emails.db"), &gorm.Config{})
+	_, err := server.GetDB()
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
+	// Load templates
+	tmpl := template.Must(template.ParseGlob("web/templates/*.html"))
+
 	mux := http.NewServeMux()
+
+	// Display paginated inbox
 	mux.HandleFunc("/emails", func(w http.ResponseWriter, r *http.Request) {
 		pageParam := r.URL.Query().Get("page")
 		page, _ := strconv.Atoi(pageParam)
@@ -33,40 +34,69 @@ func StartWebServer(ctx context.Context, port string) {
 		limit := 20
 		offset := (page - 1) * limit
 
-		var emails []server.Email
-		result := db.Order("received_at desc").Offset(offset).Limit(limit).Find(&emails)
-		if result.Error != nil {
+		emails, dbErr := server.GetAllEmails(offset, limit)
+		if dbErr != nil {
 			http.Error(w, "Database error", http.StatusInternalServerError)
 			return
 		}
 
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintln(w, "<html><body><h1>Inbox</h1><ul>")
-		for _, e := range emails {
-			content := e.Body
-			fmt.Fprintf(w,
-				`<li>
-					From: %s<br>
-					To: %s<br>
-					Received: %s<br>
-					<pre>%s</pre>
-				</li><hr>`,
-				html.EscapeString(e.Sender),
-				html.EscapeString(e.Receiver),
-				e.ReceivedAt.Format(time.RFC1123),
-				html.EscapeString(content),
-			)
+		data := map[string]interface{}{
+			"Emails":   emails,
+			"NextPage": page + 1,
 		}
-		fmt.Fprintf(w, "</ul><a href='/emails?page=%d'>Next Page</a></body></html>", page+1)
+		err := tmpl.ExecuteTemplate(w, "inbox.html", data)
+		if err != nil {
+			log.Println("Template error:", err)
+			http.Error(w, "Template rendering error", http.StatusInternalServerError)
+		}
 	})
 
-	// Create an HTTP server
+	// Delete a specific email
+	mux.HandleFunc("/delete", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		emailID := r.URL.Query().Get("id")
+		if emailID == "" {
+			http.Error(w, "Email ID is required", http.StatusBadRequest)
+			return
+		}
+		id, err := strconv.Atoi(emailID)
+		if err != nil {
+			http.Error(w, "Invalid email ID", http.StatusBadRequest)
+			return
+		}
+		result := server.DeleteEmailById(id)
+		if result.Error != nil {
+			http.Error(w, "Failed to delete email", http.StatusInternalServerError)
+			return
+		}
+
+		tmpl.ExecuteTemplate(w, "message_deleted.html", map[string]int{"ID": id})
+	})
+
+	// Delete all emails
+	mux.HandleFunc("/delete_all", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		result := server.DeleteAllEmails()
+		if result.Error != nil {
+			http.Error(w, "Failed to delete all emails", http.StatusInternalServerError)
+			return
+		}
+		tmpl.ExecuteTemplate(w, "all_deleted.html", nil)
+	})
+
+	// HTTP server
 	srv := &http.Server{
 		Addr:    ":" + port,
 		Handler: mux,
 	}
 
-	// Run the server in a goroutine
+	// Run the server
 	go func() {
 		log.Println("Web server listening on :" + port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -74,14 +104,12 @@ func StartWebServer(ctx context.Context, port string) {
 		}
 	}()
 
-	// Wait for context cancellation
+	// Wait for shutdown
 	<-ctx.Done()
 
-	// Gracefully shut down the server with timeout
 	log.Println("Shutting down web server...")
 	ctxShutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
 	if err := srv.Shutdown(ctxShutdown); err != nil {
 		log.Fatalf("Web server shutdown failed: %v", err)
 	}
