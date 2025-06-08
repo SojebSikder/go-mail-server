@@ -4,6 +4,7 @@ import (
 	"context"
 	"os/signal"
 	server "sojebsikder/go-smtp-server/server"
+	"sojebsikder/go-smtp-server/web"
 	"sync"
 	"syscall"
 )
@@ -11,6 +12,7 @@ import (
 func main() {
 	smtpPort := "2525"
 	imapPort := "1430"
+	webPort := "8080"
 
 	if err := server.InitDB(); err != nil {
 		panic("failed to connect to database: " + err.Error())
@@ -33,6 +35,13 @@ func main() {
 	go func() {
 		defer wg.Done()
 		server.CreateIMAPConnection(ctx, imapPort)
+	}()
+
+	// Start web server
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		web.StartWebServer(ctx, webPort)
 	}()
 
 	// Wait for shutdown signal

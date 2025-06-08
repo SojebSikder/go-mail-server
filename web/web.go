@@ -1,6 +1,7 @@
-package main
+package web
 
 import (
+	"context"
 	"fmt"
 	"html"
 	"log"
@@ -8,31 +9,22 @@ import (
 	"strconv"
 	"time"
 
+	server "sojebsikder/go-smtp-server/server"
+
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
-type Email struct {
-	ID         uint `gorm:"primaryKey"`
-	Sender     string
-	Receiver   string
-	Body       string
-	ReceivedAt time.Time
-}
-
-func main() {
+// StartWebServer initializes the web server to display emails
+func StartWebServer(ctx context.Context, port string) {
 	// Initialize the database connection
 	db, err := gorm.Open(sqlite.Open("emails.db"), &gorm.Config{})
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
-	// Start the web server
-	startWebServer(db)
-}
-
-func startWebServer(db *gorm.DB) {
-	http.HandleFunc("/emails", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/emails", func(w http.ResponseWriter, r *http.Request) {
 		pageParam := r.URL.Query().Get("page")
 		page, _ := strconv.Atoi(pageParam)
 		if page < 1 {
@@ -41,7 +33,7 @@ func startWebServer(db *gorm.DB) {
 		limit := 20
 		offset := (page - 1) * limit
 
-		var emails []Email
+		var emails []server.Email
 		result := db.Order("received_at desc").Offset(offset).Limit(limit).Find(&emails)
 		if result.Error != nil {
 			http.Error(w, "Database error", http.StatusInternalServerError)
@@ -68,6 +60,29 @@ func startWebServer(db *gorm.DB) {
 		fmt.Fprintf(w, "</ul><a href='/emails?page=%d'>Next Page</a></body></html>", page+1)
 	})
 
-	log.Println("Web server listening on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	// Create an HTTP server
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: mux,
+	}
+
+	// Run the server in a goroutine
+	go func() {
+		log.Println("Web server listening on :" + port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("HTTP server ListenAndServe: %v", err)
+		}
+	}()
+
+	// Wait for context cancellation
+	<-ctx.Done()
+
+	// Gracefully shut down the server with timeout
+	log.Println("Shutting down web server...")
+	ctxShutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctxShutdown); err != nil {
+		log.Fatalf("Web server shutdown failed: %v", err)
+	}
 }
