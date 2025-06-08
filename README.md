@@ -10,6 +10,12 @@ Run the SMTP, IMAP server:
 go run .
 ```
 
+To view emails go to following url:
+
+```bash
+http://localhost:8080/emails
+```
+
 Run SMTP client to send email:
 
 ```bash
@@ -20,10 +26,4 @@ To fetch emails:
 
 ```bash
 go run client/imap/imapclient.go
-```
-
-To view emails run the following command:
-
-```bash
-go run web/web.go
 ```
