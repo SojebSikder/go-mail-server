@@ -12,6 +12,8 @@ import (
 	"syscall"
 )
 
+var version = "0.0.1"
+
 func showUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  smail start [--smtp-port PORT] [--imap-port PORT] [--web-port PORT]")
@@ -52,7 +54,7 @@ func main() {
 	case "help":
 		showUsage()
 	case "version":
-		fmt.Println("Smail version 0.0.1")
+		fmt.Println("Smail version " + version)
 	default:
 		fmt.Println("Unknown command:", cmd)
 		fmt.Println("Use 'smail help' to see available commands.")

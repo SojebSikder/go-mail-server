@@ -6,16 +6,16 @@
 </head>
 
 <body>
-    <h1>Email of {{.Sender}}</h1>
+    <h1>Email of {{.Email.Sender}}</h1>
     <ul>
         <li>
-            <strong>From:</strong> {{.Sender}}<br>
-            <strong>To:</strong> {{.Receiver}}<br>
-            <strong>Received:</strong> {{.ReceivedAt}}<br>
-            <pre>{{.Body}}</pre>
+            <strong>From:</strong> {{.Email.Sender}}<br>
+            <strong>To:</strong> {{.Email.Receiver}}<br>
+            <strong>Received:</strong> {{.Email.ReceivedAt}}<br>
+            <pre>{{.Email.Body}}</pre>
 
-            <form action="/delete?id={{.ID}}" method="POST" style="margin-top: 5px;">
-                <button type="submit" onclick="return confirm('Delete email ID {{.ID}}?')">Delete</button>
+            <form action="/delete?id={{.Email.ID}}" method="POST" style="margin-top: 5px;">
+                <button type="submit" onclick="return confirm('Delete email ID {{.Email.ID}}?')">Delete</button>
             </form>
         </li>
         <hr>
