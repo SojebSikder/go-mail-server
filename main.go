@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	imapclient "sojebsikder/go-smtp-server/client/imap"
+	smtpclient "sojebsikder/go-smtp-server/client/smtp"
 	server "sojebsikder/go-smtp-server/server"
 	"sojebsikder/go-smtp-server/web"
 	"sync"
@@ -17,6 +19,9 @@ var version = "0.0.1"
 func showUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  smail start [--smtp-port PORT] [--imap-port PORT] [--web-port PORT]")
+	fmt.Println("  smail testsmtp")
+	fmt.Println("  smail testimap")
+	fmt.Println()
 	fmt.Println("  smail help")
 	fmt.Println("  smail version")
 	fmt.Println()
@@ -51,6 +56,12 @@ func main() {
 			IMAPPort: imapPort,
 			WebPort:  webPort,
 		})
+	case "testsmtp":
+		smtpclient.ExecuteSMTPClient()
+		os.Exit(0)
+	case "testimap":
+		imapclient.ExecuteIMAPClient()
+		os.Exit(0)
 	case "help":
 		showUsage()
 	case "version":

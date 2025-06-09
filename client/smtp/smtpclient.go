@@ -1,4 +1,4 @@
-package main
+package smtpclient
 
 import (
 	"encoding/base64"
@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func main() {
+func ExecuteSMTPClient() {
 	err := sendMailWithAttachment(
 		"user1@example.com",
 		"user1@example.com",

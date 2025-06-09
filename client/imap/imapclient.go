@@ -1,4 +1,4 @@
-package main
+package imapclient
 
 import (
 	"bufio"
@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func main() {
+func ExecuteIMAPClient() {
 	conn, err := net.Dial("tcp", "localhost:1430")
 	if err != nil {
 		panic(err)

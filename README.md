@@ -19,13 +19,13 @@ http://localhost:8080/emails
 Run SMTP client to send email:
 
 ```bash
-go run client/smtp/smtpclient.go
+go run . testsmtp
 ```
 
 To fetch emails:
 
 ```bash
-go run client/imap/imapclient.go
+go run . testimap
 ```
 
 ## Supported commands
@@ -33,6 +33,9 @@ go run client/imap/imapclient.go
 ```bash
 Usage:
   smail start [--smtp-port PORT] [--imap-port PORT] [--web-port PORT]
+  smail testsmtp
+  smail testimap
+
   smail help
   smail version
 
