@@ -10,18 +10,49 @@ import (
 	"strings"
 )
 
-func ExecuteSMTPClient() {
-	err := sendMailWithAttachment(
-		"user1@example.com",
-		"user1@example.com",
-		"Test Email with Attachment",
-		"This is the email body.",
-		"./emails.db", // path to the file to attach
-	)
+func ExecuteSMTPClient(withAttachment bool) {
+	var err error
+	if withAttachment {
+		err = sendMailWithAttachment(
+			"user1@example.com",
+			"user1@example.com",
+			"Test Email with Attachment",
+			"This is the email body.",
+			"./emails.db", // path to the file to attach
+		)
+	} else {
+		err = sendMail(
+			"user1@example.com",
+			"user1@example.com",
+			"Test Email with Attachment",
+			"This is the email body.",
+		)
+	}
+
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println("Email sent successfully with attachment")
+}
+
+func sendMail(from, to, subject, body string) error {
+
+	// Compose the email message
+	msg := strings.Join([]string{
+		"From: " + from,
+		"To: " + to,
+		"Subject: " + subject,
+		"",
+		body,
+	}, "\r\n")
+
+	err := smtp.SendMail("localhost:2525", nil, from, []string{to}, []byte(msg))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Email sent successfully")
+
+	return nil
 }
 
 func sendMailWithAttachment(from, to, subject, body, attachmentPath string) error {
@@ -73,5 +104,9 @@ func sendMailWithAttachment(from, to, subject, body, attachmentPath string) erro
 	msg.WriteString("--" + boundary + "--")
 
 	// Send the email
-	return smtp.SendMail("localhost:2525", nil, from, []string{to}, []byte(msg.String()))
+	smtp.SendMail("localhost:2525", nil, from, []string{to}, []byte(msg.String()))
+
+	log.Println("Email sent successfully with attachment")
+
+	return nil
 }

@@ -57,7 +57,11 @@ func main() {
 			WebPort:  webPort,
 		})
 	case "testsmtp":
-		smtpclient.ExecuteSMTPClient()
+		withAttachment := false
+		if len(os.Args) > 2 && os.Args[2] == "--with-attachment" {
+			withAttachment = true
+		}
+		smtpclient.ExecuteSMTPClient(withAttachment)
 		os.Exit(0)
 	case "testimap":
 		imapclient.ExecuteIMAPClient()
