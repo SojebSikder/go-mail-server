@@ -15,7 +15,7 @@ func ExecuteSMTPClient(withAttachment bool) {
 	if withAttachment {
 		err = sendMailWithAttachment(
 			"user1@example.com",
-			"user1@example.com",
+			"user2@example.com",
 			"Test Email with Attachment",
 			"This is the email body.",
 			"./emails.db", // path to the file to attach
@@ -23,8 +23,8 @@ func ExecuteSMTPClient(withAttachment bool) {
 	} else {
 		err = sendMail(
 			"user1@example.com",
-			"user1@example.com",
-			"Test Email with Attachment",
+			"user2@example.com",
+			"Test Email",
 			"This is the email body.",
 		)
 	}

@@ -21,11 +21,11 @@ func ExecuteIMAPClient() {
 	readResponse(reader)
 
 	// Send LOGIN command
-	sendCommand(writer, "a1 LOGIN bob@example.com anypassword")
+	sendCommand(writer, "a1 LOGIN user1@example.com anypassword")
 	readResponse(reader)
 
 	// Send FETCH command
-	sendCommand(writer, "a2 FETCH 1 BODY[]")
+	sendCommand(writer, "a2 FETCH 1:* BODY[]")
 	readMultiResponse(reader)
 
 	// Send LOGOUT command
