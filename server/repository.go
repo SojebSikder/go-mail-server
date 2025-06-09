@@ -70,7 +70,7 @@ func GetAllEmails(offset, limit int) ([]Email, error) {
 }
 
 // GetEmailById retrieves a specific email by its ID
-func GetEmailById(id uint) (*Email, error) {
+func GetEmailById(id int) (*Email, error) {
 	var email Email
 	err := db.First(&email, id).Error
 	if err != nil {

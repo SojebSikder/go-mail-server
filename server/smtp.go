@@ -75,7 +75,7 @@ func HandleSMTP(conn net.Conn) {
 				fmt.Println("=== New Email ===")
 				fmt.Println("From:", from)
 				fmt.Println("To:", to)
-				fmt.Println("Body:\n", data.String())
+				// fmt.Println("Body:\n", data.String())
 				writeLine("250 OK: Message accepted")
 				dataMode = false
 				data.Reset()

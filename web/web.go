@@ -51,6 +51,38 @@ func StartWebServer(ctx context.Context, port string) {
 		}
 	})
 
+	// Display a specific email
+	mux.HandleFunc("/email", func(w http.ResponseWriter, r *http.Request) {
+		emailID := r.URL.Query().Get("id")
+		if emailID == "" {
+			http.Error(w, "Email ID is required", http.StatusBadRequest)
+			return
+		}
+		id, err := strconv.Atoi(emailID)
+		if err != nil {
+			http.Error(w, "Invalid email ID", http.StatusBadRequest)
+			return
+		}
+		email, dbErr := server.GetEmailById(id)
+		if dbErr != nil {
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+		if email == nil {
+			http.Error(w, "Email not found", http.StatusNotFound)
+			return
+		}
+		data := map[string]interface{}{
+			"Email": email,
+		}
+
+		err = tmpl.ExecuteTemplate(w, "email.html", data)
+		if err != nil {
+			log.Println("Template error:", err)
+			http.Error(w, "Template rendering error", http.StatusInternalServerError)
+		}
+	})
+
 	// Delete a specific email
 	mux.HandleFunc("/delete", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

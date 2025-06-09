@@ -27,3 +27,17 @@ To fetch emails:
 ```bash
 go run client/imap/imapclient.go
 ```
+
+## Supported commands
+
+```bash
+Usage:
+  smail start [--smtp-port PORT] [--imap-port PORT] [--web-port PORT]
+  smail help
+  smail version
+
+Options:
+  --smtp-port PORT   Specify the SMTP server port (default: 2525)
+  --imap-port PORT   Specify the IMAP server port (default: 1430)
+  --web-port PORT    Specify the web server port (default: 8080)
+```
