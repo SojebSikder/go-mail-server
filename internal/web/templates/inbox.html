@@ -15,16 +15,20 @@
     <ul>
         {{range .Emails}}
         <li>
-            <a href="/email?id={{.ID}}">{{.Sender}}</a><br>
+            <a href="/emails?id={{.ID}}">{{.Sender}}</a><br>
             <strong>Email ID:</strong> {{.ID}}<br>
             <strong>From:</strong> {{.Sender}}<br>
             <strong>To:</strong> {{.Receiver}}<br>
             <strong>Received:</strong> {{.ReceivedAt}}<br>
             <!-- <pre>{{.Body}}</pre> -->
-
+            <br>
+            <a href="/emails?id={{.ID}}">View</a>
+            <br>
+            <br>
             <form action="/delete?id={{.ID}}" method="POST" style="margin-top: 5px;">
                 <button type="submit" onclick="return confirm('Delete email ID {{.ID}}?')">Delete</button>
             </form>
+
         </li>
         <hr>
         {{end}}
