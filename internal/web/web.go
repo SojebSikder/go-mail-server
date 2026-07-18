@@ -7,7 +7,11 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
+
+	"crypto/rand"
+	"encoding/base64"
 
 	server "sojebsikder/go-smtp-server/internal/server"
 )
@@ -15,169 +19,168 @@ import (
 //go:embed templates/*.html
 var templateFiles embed.FS
 
-// StartWebServer initializes the web server to display emails
+// Memory session engine
+var (
+	sessions  = make(map[string]string)
+	sessionMu sync.RWMutex
+)
+
+func generateToken() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return base64.URLEncoding.EncodeToString(b)
+}
+
 func StartWebServer(ctx context.Context, port string) {
-	// Initialize the database connection
-	_, err := server.GetDB()
-	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
-	}
-
-	// Load templates
-	// tmpl := template.Must(template.ParseGlob("web/templates/*.html"))
 	tmpl := template.Must(template.ParseFS(templateFiles, "templates/*.html"))
-
 	mux := http.NewServeMux()
 
-	// Display paginated inbox
-	mux.HandleFunc("/emails", func(w http.ResponseWriter, r *http.Request) {
-		pageParam := r.URL.Query().Get("page")
+	// Authentication Middleware
+	authRequired := func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			cookie, err := r.Cookie("session_token")
+			if err != nil {
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				return
+			}
+			sessionMu.RLock()
+			username, exists := sessions[cookie.Value]
+			sessionMu.RUnlock()
+
+			if !exists {
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				return
+			}
+			// Put the session context on the request context scope
+			ctx := context.WithValue(r.Context(), "username", username)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		}
+	}
+
+	// sign up handler
+	mux.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			tmpl.ExecuteTemplate(w, "register.html", nil)
+			return
+		}
+		u := r.FormValue("username")
+		p := r.FormValue("password")
+		if u == "" || p == "" {
+			tmpl.ExecuteTemplate(w, "register.html", map[string]string{"Error": "Fields cannot be blank"})
+			return
+		}
+		if err := server.RegisterUser(u, p); err != nil {
+			tmpl.ExecuteTemplate(w, "register.html", map[string]string{"Error": "Username taken or error processing request"})
+			return
+		}
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+	})
+
+	// login handler
+	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			tmpl.ExecuteTemplate(w, "login.html", nil)
+			return
+		}
+		u := r.FormValue("username")
+		p := r.FormValue("password")
+
+		ok, err := server.AuthenticateUser(u, p)
+		if err != nil || !ok {
+			tmpl.ExecuteTemplate(w, "login.html", map[string]string{"Error": "Invalid username or password"})
+			return
+		}
+
+		token := generateToken()
+		sessionMu.Lock()
+		sessions[token] = u
+		sessionMu.Unlock()
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     "session_token",
+			Value:    token,
+			Expires:  time.Now().Add(24 * time.Hour),
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+		})
+		http.Redirect(w, r, "/emails", http.StatusSeeOther)
+	})
+
+	// mailbox view
+	mux.HandleFunc("/emails", authRequired(func(w http.ResponseWriter, r *http.Request) {
+		username := r.Context().Value("username").(string)
 		emailID := r.URL.Query().Get("id")
 
 		if emailID != "" {
-			// Display a specific email
-			id, err := strconv.Atoi(emailID)
+			id, _ := strconv.Atoi(emailID)
+			email, err := server.GetEmailByIdAndUser(id, username)
 			if err != nil {
-				http.Error(w, "Invalid email ID", http.StatusBadRequest)
-				return
-			}
-			email, dbErr := server.GetEmailById(id)
-			if dbErr != nil {
-				http.Error(w, "Database error", http.StatusInternalServerError)
-				return
-			}
-			if email == nil {
 				http.Error(w, "Email not found", http.StatusNotFound)
 				return
 			}
-			data := map[string]interface{}{
-				"Email": email,
-			}
-
-			err = tmpl.ExecuteTemplate(w, "email.html", data)
-			if err != nil {
-				log.Println("Template error:", err)
-				http.Error(w, "Template rendering error", http.StatusInternalServerError)
-			}
+			tmpl.ExecuteTemplate(w, "email.html", map[string]interface{}{"Email": email, "User": username})
 		} else {
-			// Display the inbox
-			page, _ := strconv.Atoi(pageParam)
+			page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 			if page < 1 {
 				page = 1
 			}
 			limit := 20
 			offset := (page - 1) * limit
 
-			emails, dbErr := server.GetAllEmails(offset, limit)
-			if dbErr != nil {
-				http.Error(w, "Database error", http.StatusInternalServerError)
-				return
-			}
-
-			data := map[string]interface{}{
+			emails, _ := server.GetEmailsFor(username, offset, limit)
+			tmpl.ExecuteTemplate(w, "inbox.html", map[string]interface{}{
 				"Emails":   emails,
+				"User":     username,
 				"NextPage": page + 1,
-			}
-			err := tmpl.ExecuteTemplate(w, "inbox.html", data)
-			if err != nil {
-				log.Println("Template error:", err)
-				http.Error(w, "Template rendering error", http.StatusInternalServerError)
-			}
+			})
 		}
-	})
+	}))
 
-	// Display a specific email
-	// mux.HandleFunc("/email", func(w http.ResponseWriter, r *http.Request) {
-	// 	emailID := r.URL.Query().Get("id")
-	// 	if emailID == "" {
-	// 		http.Error(w, "Email ID is required", http.StatusBadRequest)
-	// 		return
-	// 	}
-	// 	id, err := strconv.Atoi(emailID)
-	// 	if err != nil {
-	// 		http.Error(w, "Invalid email ID", http.StatusBadRequest)
-	// 		return
-	// 	}
-	// 	email, dbErr := server.GetEmailById(id)
-	// 	if dbErr != nil {
-	// 		http.Error(w, "Database error", http.StatusInternalServerError)
-	// 		return
-	// 	}
-	// 	if email == nil {
-	// 		http.Error(w, "Email not found", http.StatusNotFound)
-	// 		return
-	// 	}
-	// 	data := map[string]interface{}{
-	// 		"Email": email,
-	// 	}
-
-	// 	err = tmpl.ExecuteTemplate(w, "email.html", data)
-	// 	if err != nil {
-	// 		log.Println("Template error:", err)
-	// 		http.Error(w, "Template rendering error", http.StatusInternalServerError)
-	// 	}
-	// })
-
-	// Delete a specific email
-	mux.HandleFunc("/delete", func(w http.ResponseWriter, r *http.Request) {
+	// Delete Item
+	mux.HandleFunc("/delete", authRequired(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		emailID := r.URL.Query().Get("id")
-		if emailID == "" {
-			http.Error(w, "Email ID is required", http.StatusBadRequest)
-			return
-		}
-		id, err := strconv.Atoi(emailID)
-		if err != nil {
-			http.Error(w, "Invalid email ID", http.StatusBadRequest)
-			return
-		}
-		result := server.DeleteEmailById(id)
-		if result.Error != nil {
-			http.Error(w, "Failed to delete email", http.StatusInternalServerError)
-			return
+		username := r.Context().Value("username").(string)
+		id, _ := strconv.Atoi(r.URL.Query().Get("id"))
+
+		server.DeleteEmailByIdAndUser(id, username)
+		http.Redirect(w, r, "/emails", http.StatusSeeOther)
+	}))
+
+	// Log Out Handler
+	mux.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("session_token")
+		if err == nil {
+			sessionMu.Lock()
+			delete(sessions, cookie.Value)
+			sessionMu.Unlock()
 		}
 
-		tmpl.ExecuteTemplate(w, "message_deleted.html", map[string]int{"ID": id})
+		// expire the browser cookie by setting MaxAge to -1
+		http.SetCookie(w, &http.Cookie{
+			Name:     "session_token",
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+		})
+
+		// redirect to login screen
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
 	})
 
-	// Delete all emails
-	mux.HandleFunc("/delete_all", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		result := server.DeleteAllEmails()
-		if result.Error != nil {
-			http.Error(w, "Failed to delete all emails", http.StatusInternalServerError)
-			return
-		}
-		tmpl.ExecuteTemplate(w, "all_deleted.html", nil)
-	})
-
-	// HTTP server
-	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: mux,
-	}
-
-	// Run the server
+	srv := &http.Server{Addr: ":" + port, Handler: mux}
 	go func() {
-		log.Println("Web server listening on :" + port)
+		log.Println("Secure web UI portal live at http://localhost:" + port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("HTTP server ListenAndServe: %v", err)
+			log.Fatalf("HTTP serving error: %v", err)
 		}
 	}()
 
-	// Wait for shutdown
 	<-ctx.Done()
-
-	log.Println("Shutting down web server...")
 	ctxShutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := srv.Shutdown(ctxShutdown); err != nil {
-		log.Fatalf("Web server shutdown failed: %v", err)
-	}
+	srv.Shutdown(ctxShutdown)
 }

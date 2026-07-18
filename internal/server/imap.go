@@ -14,34 +14,27 @@ func CreateIMAPConnection(ctx context.Context, imapPort string) {
 		panic("failed to start IMAP server: " + err.Error())
 	}
 	fmt.Println("IMAP server listening on port", imapPort)
+
+	go func() {
+		<-ctx.Done()
+		ln.Close()
+	}()
+
 	for {
-		connChan := make(chan net.Conn)
-		errChan := make(chan error)
-
-		go func() {
-			conn, err := ln.Accept()
-			if err != nil {
-				errChan <- err
-			} else {
-				connChan <- conn
+		conn, err := ln.Accept()
+		if err != nil {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				fmt.Println("IMAP accept error:", err)
+				continue
 			}
-		}()
-
-		select {
-		case <-ctx.Done():
-			ln.Close()
-			return
-		case conn := <-connChan:
-			go HandleIMAP(conn)
-		case err := <-errChan:
-			fmt.Println("IMAP accept error:", err)
 		}
+		go HandleIMAP(conn)
 	}
 }
 
-// HandleIMAP handles incoming IMAP connections
-// It processes commands like LOGIN, FETCH, and LOGOUT.
-// It retrieves emails from the database and sends them to the client.
 func HandleIMAP(conn net.Conn) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
@@ -53,7 +46,6 @@ func HandleIMAP(conn net.Conn) {
 	}
 
 	writeLine("* OK Simple IMAP Server Ready")
-
 	var loggedInUser string
 
 	for {
@@ -82,8 +74,20 @@ func HandleIMAP(conn net.Conn) {
 				writeLine(tag + " BAD LOGIN requires username and password")
 				continue
 			}
-			loggedInUser = args[0]
-			fmt.Println("User logged in:", loggedInUser)
+			user := args[0]
+			pass := args[1]
+
+			// Strip standard IMAP wrapping quotes if present
+			user = strings.Trim(user, "\"")
+			pass = strings.Trim(pass, "\"")
+
+			ok, err := AuthenticateUser(user, pass)
+			if err != nil || !ok {
+				writeLine(tag + " NO Authentication failed")
+				continue
+			}
+
+			loggedInUser = user
 			writeLine(tag + " OK LOGIN completed")
 
 		case "FETCH":
@@ -91,11 +95,13 @@ func HandleIMAP(conn net.Conn) {
 				writeLine(tag + " NO LOGIN required")
 				continue
 			}
-			emails, _ := GetEmailsFor(loggedInUser)
+			// fetch first 100 entries
+			emails, _ := GetEmailsFor(loggedInUser, 0, 100)
 			for i, email := range emails {
-				fmt.Fprintf(conn, "* %d FETCH (BODY[] {%d}\r\n%s)\r\n", i+1, len(email.Body), email.Body)
+				fmt.Fprintf(writer, "* %d FETCH (BODY[] {%d}\r\n%s)\r\n", i+1, len(email.Body), email.Body)
 			}
-			fmt.Fprintf(conn, "%s OK FETCH completed\r\n", tag)
+			writer.Flush()
+			writeLine(tag + " OK FETCH completed")
 
 		case "LOGOUT":
 			writeLine("* BYE Logging out")

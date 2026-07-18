@@ -1,40 +1,112 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Inbox - Smail</title>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+                margin: 0;
+                display: flex;
+                background: #f8fafc;
+                color: #334155;
+            }
+            .sidebar {
+                width: 240px;
+                background: #1e293b;
+                color: white;
+                height: 100vh;
+                padding: 20px;
+                box-sizing: border-box;
+            }
+            .main {
+                flex: 1;
+                padding: 40px;
+                overflow-y: auto;
+                box-sizing: border-box;
+            }
+            .card {
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+                border: 1px solid #e2e8f0;
+            }
+            .email-item {
+                display: flex;
+                justify-content: space-between;
+                padding: 16px 20px;
+                border-bottom: 1px solid #f1f5f9;
+                text-decoration: none;
+                color: inherit;
+            }
+            .email-item:hover {
+                background: #f8fafc;
+            }
+            .sender {
+                font-weight: 600;
+                width: 200px;
+            }
+            .body-preview {
+                flex: 1;
+                color: #64748b;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                margin: 0 20px;
+            }
+            .time {
+                color: #94a3b8;
+                font-size: 14px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="sidebar">
+            <h3>Smail Dashboard</h3>
+            <p style="color: #94a3b8; font-size: 14px">
+                Logged in as:<br /><b>{{.User}}</b>
+            </p>
+            <hr style="border-color: #334155" />
 
-<head>
-    <title>Inbox</title>
-</head>
-
-<body>
-    <h1>Inbox</h1>
-
-    <form action="/delete_all" method="POST" onsubmit="return confirm('Are you sure you want to delete all emails?');">
-        <button type="submit">Delete All Emails</button>
-    </form>
-
-    <ul>
-        {{range .Emails}}
-        <li>
-            <a href="/emails?id={{.ID}}">{{.Sender}}</a><br>
-            <strong>Email ID:</strong> {{.ID}}<br>
-            <strong>From:</strong> {{.Sender}}<br>
-            <strong>To:</strong> {{.Receiver}}<br>
-            <strong>Received:</strong> {{.ReceivedAt}}<br>
-            <!-- <pre>{{.Body}}</pre> -->
-            <br>
-            <a href="/emails?id={{.ID}}">View</a>
-            <br>
-            <br>
-            <form action="/delete?id={{.ID}}" method="POST" style="margin-top: 5px;">
-                <button type="submit" onclick="return confirm('Delete email ID {{.ID}}?')">Delete</button>
-            </form>
-
-        </li>
-        <hr>
-        {{end}}
-    </ul>
-
-    <a href="/emails?page={{.NextPage}}">Next Page</a>
-</body>
-
+            <div style="display: flex; flex-direction: column; gap: 15px">
+                <a
+                    href="/emails"
+                    style="
+                        color: white;
+                        text-decoration: none;
+                        font-weight: bold;
+                    "
+                    >📥 Inbox</a
+                >
+                <!-- Added Logout action link below -->
+                <a
+                    href="/logout"
+                    style="
+                        color: #f87171;
+                        text-decoration: none;
+                        font-size: 14px;
+                    "
+                    >🚪 Log Out</a
+                >
+            </div>
+        </div>
+        <div class="main">
+            <h2>Your Mailbox</h2>
+            <div class="card">
+                {{range .Emails}}
+                <a href="/emails?id={{.ID}}" class="email-item">
+                    <span class="sender">{{.Sender}}</span>
+                    <span class="body-preview">{{.Body}}</span>
+                    <span class="time"
+                        >{{.ReceivedAt.Format "Jan 02, 15:04"}}</span
+                    >
+                </a>
+                {{else}}
+                <p style="padding: 20px; text-align: center; color: #94a3b8">
+                    No messages inside this workspace mailbox yet.
+                </p>
+                {{end}}
+            </div>
+        </div>
+    </body>
 </html>

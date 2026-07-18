@@ -1,44 +1,71 @@
 package server
 
 import (
-	"log"
+	"errors"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
+type User struct {
+	ID           uint   `gorm:"primaryKey"`
+	Username     string `gorm:"uniqueIndex;not null"`
+	PasswordHash string `gorm:"not null"`
+	CreatedAt    time.Time
+}
+
 type Email struct {
 	ID         uint `gorm:"primaryKey"`
 	Sender     string
-	Receiver   string
+	Receiver   string `gorm:"index"`
 	Body       string
 	ReceivedAt time.Time
 }
 
-var db *gorm.DB
+var DB *gorm.DB
 
 func InitDB() error {
 	var err error
-	db, err = gorm.Open(sqlite.Open("emails.db"), &gorm.Config{})
+	DB, err = gorm.Open(sqlite.Open("emails.db"), &gorm.Config{})
 	if err != nil {
 		return err
 	}
-	sqlDB, _ := db.DB()
-	sqlDB.Exec("PRAGMA journal_mode = WAL;")
-	return db.AutoMigrate(&Email{})
-}
 
-func GetDB() (*gorm.DB, error) {
-	// Initialize the database connection
-	db, err := gorm.Open(sqlite.Open("emails.db"), &gorm.Config{})
-	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+	sqlDB, err := DB.DB()
+	if err == nil {
+		sqlDB.SetMaxOpenConns(1)
+		sqlDB.Exec("PRAGMA journal_mode = WAL;")
 	}
 
-	return db, nil
+	return DB.AutoMigrate(&User{}, &Email{})
 }
 
+// user actions
+func RegisterUser(username, password string) error {
+	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	user := User{Username: username, PasswordHash: string(hashed)}
+	return DB.Create(&user).Error
+}
+
+func AuthenticateUser(username, password string) (bool, error) {
+	var user User
+	err := DB.Where("username = ?", username).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
+	return err == nil, nil
+}
+
+// email actions
 func SaveEmailToDB(from, to, body string) error {
 	email := Email{
 		Sender:     from,
@@ -46,46 +73,25 @@ func SaveEmailToDB(from, to, body string) error {
 		Body:       body,
 		ReceivedAt: time.Now(),
 	}
-	return db.Create(&email).Error
+	return DB.Create(&email).Error
 }
 
-func GetEmailsFor(receiver string) ([]Email, error) {
+func GetEmailsFor(receiver string, offset, limit int) ([]Email, error) {
 	var emails []Email
-	err := db.Where("receiver = ?", receiver).Order("received_at desc").Find(&emails).Error
-	if err != nil {
-		return nil, err
-	}
-	return emails, nil
+	err := DB.Where("receiver = ?", receiver).Order("received_at desc").
+		Offset(offset).Limit(limit).Find(&emails).Error
+	return emails, err
 }
 
-// Retrieve all emails with pagination
-func GetAllEmails(offset, limit int) ([]Email, error) {
-	var emails []Email
-	result := db.Order("received_at desc").Offset(offset).Limit(limit).Find(&emails)
-
-	if result.Error != nil {
-		return nil, result.Error
-	}
-	return emails, nil
-}
-
-// GetEmailById retrieves a specific email by its ID
-func GetEmailById(id int) (*Email, error) {
+func GetEmailByIdAndUser(id int, user string) (*Email, error) {
 	var email Email
-	err := db.First(&email, id).Error
+	err := DB.Where("id = ? AND receiver = ?", id, user).First(&email).Error
 	if err != nil {
 		return nil, err
 	}
 	return &email, nil
 }
 
-func DeleteEmailById(id int) *gorm.DB {
-	result := db.Delete(&Email{}, id)
-	return result
-}
-
-// delete all emails
-func DeleteAllEmails() *gorm.DB {
-	result := db.Exec("DELETE FROM emails")
-	return result
+func DeleteEmailByIdAndUser(id int, user string) error {
+	return DB.Where("id = ? AND receiver = ?", id, user).Delete(&Email{}).Error
 }
