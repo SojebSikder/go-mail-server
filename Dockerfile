@@ -19,7 +19,7 @@ WORKDIR /app
 
 COPY --from=builder /app/myapp .
 
-EXPOSE 8080 2525 1430
+EXPOSE 8080 25 143
 
 ENTRYPOINT [ "./myapp" ]
 CMD ["start"]
