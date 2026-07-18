@@ -22,4 +22,4 @@ COPY --from=builder /app/myapp .
 EXPOSE 8080 25 143
 
 ENTRYPOINT [ "./myapp" ]
-CMD ["start"]
+CMD ["start", "--smtp-port=25", "--imap-port=143"]
