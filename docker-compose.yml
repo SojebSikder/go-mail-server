@@ -1,0 +1,17 @@
+services:
+  smail:
+    # image: ghcr.io/sojebsikder/smail:latest
+    image: smail:latest
+    container_name: smail
+    ports:
+      - "8080:8080"
+      - "2525:2525"
+      - "1430:1430"
+    volumes:
+      - mail_data:/mail_data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  mail_data:
