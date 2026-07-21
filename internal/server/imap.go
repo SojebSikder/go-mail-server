@@ -70,17 +70,14 @@ func HandleIMAP(conn net.Conn) {
 
 		switch cmd {
 		case "LOGIN":
-			if len(args) != 2 {
+			if len(args) < 2 {
 				writeLine(tag + " BAD LOGIN requires username and password")
 				continue
 			}
-			user := args[0]
-			pass := args[1]
+			user := strings.Trim(args[0], "\"")
+			pass := strings.Trim(strings.Join(args[1:], " "), "\"")
 
-			// Strip standard IMAP wrapping quotes if present
-			user = strings.Trim(user, "\"")
-			pass = strings.Trim(pass, "\"")
-
+			// authentication
 			ok, err := AuthenticateUser(user, pass)
 			if err != nil || !ok {
 				writeLine(tag + " NO Authentication failed")
@@ -96,7 +93,12 @@ func HandleIMAP(conn net.Conn) {
 				continue
 			}
 			// fetch first 100 entries
-			emails, _ := GetEmailsFor(loggedInUser, 0, 100)
+			emails, err := GetEmailsFor(loggedInUser, 0, 100)
+			if err != nil {
+				writeLine(tag + " NO Error fetching emails")
+				continue
+			}
+
 			for i, email := range emails {
 				fmt.Fprintf(writer, "* %d FETCH (BODY[] {%d}\r\n%s)\r\n", i+1, len(email.Body), email.Body)
 			}

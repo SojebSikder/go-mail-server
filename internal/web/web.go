@@ -2,7 +2,9 @@ package web
 
 import (
 	"context"
+	"crypto/rand"
 	"embed"
+	"encoding/base64"
 	"html/template"
 	"log"
 	"net/http"
@@ -10,16 +12,16 @@ import (
 	"sync"
 	"time"
 
-	"crypto/rand"
-	"encoding/base64"
-
 	server "sojebsikder/go-smtp-server/internal/server"
 )
+
+type contextKey string
+
+const userContextKey contextKey = "username"
 
 //go:embed templates/*.html static/*.css
 var contentFS embed.FS
 
-// Memory session engine
 var (
 	sessions  = make(map[string]string)
 	sessionMu sync.RWMutex
@@ -37,7 +39,6 @@ func StartWebServer(ctx context.Context, port string) {
 
 	mux.Handle("/static/", http.FileServer(http.FS(contentFS)))
 
-	// Authentication Middleware
 	authRequired := func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie("session_token")
@@ -53,13 +54,11 @@ func StartWebServer(ctx context.Context, port string) {
 				http.Redirect(w, r, "/login", http.StatusSeeOther)
 				return
 			}
-			// Put the session context on the request context scope
-			ctx := context.WithValue(r.Context(), "username", username)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			reqCtx := context.WithValue(r.Context(), userContextKey, username)
+			next.ServeHTTP(w, r.WithContext(reqCtx))
 		}
 	}
 
-	// sign up handler
 	mux.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			tmpl.ExecuteTemplate(w, "register.html", nil)
@@ -78,7 +77,6 @@ func StartWebServer(ctx context.Context, port string) {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 	})
 
-	// login handler
 	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			tmpl.ExecuteTemplate(w, "login.html", nil)
@@ -108,9 +106,8 @@ func StartWebServer(ctx context.Context, port string) {
 		http.Redirect(w, r, "/emails", http.StatusSeeOther)
 	})
 
-	// mailbox view
 	mux.HandleFunc("/emails", authRequired(func(w http.ResponseWriter, r *http.Request) {
-		username := r.Context().Value("username").(string)
+		username, _ := r.Context().Value(userContextKey).(string)
 		emailID := r.URL.Query().Get("id")
 
 		if emailID != "" {
@@ -138,20 +135,18 @@ func StartWebServer(ctx context.Context, port string) {
 		}
 	}))
 
-	// Delete Item
 	mux.HandleFunc("/delete", authRequired(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		username := r.Context().Value("username").(string)
+		username, _ := r.Context().Value(userContextKey).(string)
 		id, _ := strconv.Atoi(r.URL.Query().Get("id"))
 
 		server.DeleteEmailByIdAndUser(id, username)
 		http.Redirect(w, r, "/emails", http.StatusSeeOther)
 	}))
 
-	// Log Out Handler
 	mux.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("session_token")
 		if err == nil {
@@ -160,7 +155,6 @@ func StartWebServer(ctx context.Context, port string) {
 			sessionMu.Unlock()
 		}
 
-		// expire the browser cookie by setting MaxAge to -1
 		http.SetCookie(w, &http.Cookie{
 			Name:     "session_token",
 			Value:    "",
@@ -169,7 +163,6 @@ func StartWebServer(ctx context.Context, port string) {
 			HttpOnly: true,
 		})
 
-		// redirect to login screen
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 	})
 
