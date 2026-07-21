@@ -16,8 +16,8 @@ import (
 	server "sojebsikder/go-smtp-server/internal/server"
 )
 
-//go:embed templates/*.html
-var templateFiles embed.FS
+//go:embed templates/*.html static/*.css
+var contentFS embed.FS
 
 // Memory session engine
 var (
@@ -32,8 +32,10 @@ func generateToken() string {
 }
 
 func StartWebServer(ctx context.Context, port string) {
-	tmpl := template.Must(template.ParseFS(templateFiles, "templates/*.html"))
+	tmpl := template.Must(template.ParseFS(contentFS, "templates/*.html"))
 	mux := http.NewServeMux()
+
+	mux.Handle("/static/", http.FileServer(http.FS(contentFS)))
 
 	// Authentication Middleware
 	authRequired := func(next http.HandlerFunc) http.HandlerFunc {

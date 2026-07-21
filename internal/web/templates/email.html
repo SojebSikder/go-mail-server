@@ -2,28 +2,30 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>View Email</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background:#f8fafc; padding: 40px; }
-        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; border: 1px solid #e2e8f0; }
-        .meta { color: #64748b; margin-bottom: 20px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px; }
-        .body { white-space: pre-wrap; color: #1e293b; line-height: 1.6; }
-        .btn { padding: 8px 16px; background:#dc2626; color:white; border:none; border-radius:6px; cursor:pointer; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Email - Smail</title>
+    <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-    <div class="container">
-        <a href="/emails" style="text-decoration:none; color:#2563eb;">← Back to Inbox</a>
-        <h2>Message View</h2>
-        <div class="meta">
-            <strong>From:</strong> {{.Email.Sender}}<br>
-            <strong>Date:</strong> {{.Email.ReceivedAt.Format "Jan 02, 2006 15:04:05"}}
-        </div>
-        <div class="body">{{.Email.Body}}</div>
-        <br><hr style="border-color:#f1f5f9"><br>
-        <form action="/delete?id={{.Email.ID}}" method="POST">
-            <button type="submit" class="btn">Delete Message</button>
-        </form>
+    <div class="app-container">
+        <main class="main-content">
+            <a href="/emails" class="btn btn-link" style="margin-bottom: 20px;">← Back to Inbox</a>
+
+            <div class="card message-card">
+                <h1 class="page-title" style="margin-bottom: 16px;">Message Details</h1>
+
+                <div class="message-meta">
+                    <div><strong>From:</strong> {{.Email.Sender}}</div>
+                    <div><strong>Date:</strong> {{.Email.ReceivedAt.Format "Jan 02, 2006 at 15:04:05"}}</div>
+                </div>
+
+                <div class="message-body">{{.Email.Body}}</div>
+
+                <form action="/delete?id={{.Email.ID}}" method="POST" style="border-top: 1px solid var(--border); padding-top: 20px;">
+                    <button type="submit" class="btn btn-danger">Delete Message</button>
+                </form>
+            </div>
+        </main>
     </div>
 </body>
 </html>

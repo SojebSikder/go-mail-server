@@ -1,13 +1,17 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
-    <title>Deleted</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message Deleted - Smail</title>
+    <link rel="stylesheet" href="/static/styles.css">
 </head>
-
 <body>
-    <p>Email with ID {{.ID}} deleted successfully.</p>
-    <a href="/emails">Back to Inbox</a>
+    <div class="auth-wrapper">
+        <div class="card status-card" style="max-width: 400px;">
+            <p>Email with ID <strong>{{.ID}}</strong> was deleted successfully.</p>
+            <a href="/emails" class="btn btn-primary" style="display: inline-block; width: auto;">Return to Inbox</a>
+        </div>
+    </div>
 </body>
-
 </html>
