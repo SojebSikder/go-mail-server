@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compose - Smail</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div>
+                <div class="sidebar-header">
+                    <h3>Smail Workspace</h3>
+                </div>
+                <div class="user-badge">
+                    Signed in as <strong>{{.User}}</strong>
+                </div>
+                <nav class="nav-menu">
+                    <a href="/compose" class="nav-item active">✏️ Compose</a>
+                    <a href="/emails" class="nav-item">📥 Inbox</a>
+                </nav>
+            </div>
+            <div style="margin-top: 20px;">
+                <a href="/logout" class="nav-item logout">🚪 Log Out</a>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <h1 class="page-title">New Message</h1>
+            <div class="card" style="padding: 24px;">
+                {{if .Error}}
+                <div style="color: #d9534f; background: #fdf7f7; padding: 12px; border-radius: 4px; margin-bottom: 16px;">
+                    {{.Error}}
+                </div>
+                {{end}}
+                <form action="/send" method="POST">
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; font-weight: bold; margin-bottom: 6px;">To:</label>
+                        <input type="email" name="to" value="{{.To}}" placeholder="user@jabokivabe.com" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; font-weight: bold; margin-bottom: 6px;">Subject:</label>
+                        <input type="text" name="subject" value="{{.Subject}}" placeholder="Subject line" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; font-weight: bold; margin-bottom: 6px;">Message Body:</label>
+                        <textarea name="body" rows="10" placeholder="Type your message here..." required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;">{{.Body}}</textarea>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button type="submit" style="padding: 10px 20px; background: #0066cc; color: #fff; border: none; border-radius: 4px; cursor: pointer;">Send Email</button>
+                        <a href="/emails" style="padding: 10px 20px; background: #eee; color: #333; text-decoration: none; border-radius: 4px;">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </main>
+    </div>
+</body>
+</html>
