@@ -29,12 +29,11 @@ func ParseMIME(raw string) *ParsedEmail {
 		Subject: "(No Subject)",
 	}
 
-	// clean leading and trailing whitespace to prevent ReadMessage from treating headers as body
-	cleanRaw := strings.TrimSpace(raw)
+	// clean leading blank lines or spaces so header parsing starts at line 1
+	cleanRaw := strings.TrimLeft(raw, "\r\n\t ")
 
 	msg, err := mail.ReadMessage(strings.NewReader(cleanRaw))
 	if err != nil {
-		// fallback for non-MIME or raw plain text messages
 		parsed.TextBody = cleanRaw
 		return parsed
 	}
@@ -49,7 +48,6 @@ func ParseMIME(raw string) *ParsedEmail {
 		}
 	}
 
-	// parse Body (Single-part or Multi-part)
 	contentType := msg.Header.Get("Content-Type")
 	if contentType == "" {
 		contentType = "text/plain; charset=utf-8"
@@ -57,7 +55,6 @@ func ParseMIME(raw string) *ParsedEmail {
 
 	mediaType, params, err := mime.ParseMediaType(contentType)
 	if err != nil || !strings.HasPrefix(mediaType, "multipart/") {
-		// single part message
 		body := decodeBody(msg.Body, msg.Header.Get("Content-Transfer-Encoding"))
 		if strings.Contains(mediaType, "text/html") {
 			parsed.HTMLBody = template.HTML(body)
@@ -68,16 +65,19 @@ func ParseMIME(raw string) *ParsedEmail {
 		return parsed
 	}
 
-	// handle multipart MIME
 	boundary, ok := params["boundary"]
 	if !ok {
-		// fallback if boundary key missing
 		body, _ := io.ReadAll(msg.Body)
 		parsed.TextBody = string(body)
 		return parsed
 	}
 
-	mr := multipart.NewReader(msg.Body, boundary)
+	parseMultipart(msg.Body, boundary, parsed)
+	return parsed
+}
+
+func parseMultipart(r io.Reader, boundary string, parsed *ParsedEmail) {
+	mr := multipart.NewReader(r, boundary)
 	for {
 		part, err := mr.NextPart()
 		if err == io.EOF || err != nil {
@@ -89,7 +89,16 @@ func ParseMIME(raw string) *ParsedEmail {
 			partContentType = "text/plain"
 		}
 
-		partMediaType, _, _ := mime.ParseMediaType(partContentType)
+		partMediaType, params, _ := mime.ParseMediaType(partContentType)
+
+		// handle nested multipart (e.g. multipart/related inside multipart/alternative)
+		if strings.HasPrefix(partMediaType, "multipart/") {
+			if subBoundary, ok := params["boundary"]; ok {
+				parseMultipart(part, subBoundary, parsed)
+			}
+			continue
+		}
+
 		partEncoding := part.Header.Get("Content-Transfer-Encoding")
 		decodedContent := decodeBody(part, partEncoding)
 
@@ -104,8 +113,6 @@ func ParseMIME(raw string) *ParsedEmail {
 			}
 		}
 	}
-
-	return parsed
 }
 
 func decodeBody(r io.Reader, encoding string) string {

@@ -69,10 +69,12 @@ func HandleSMTP(conn net.Conn, requireAuth bool) {
 		if err != nil {
 			return
 		}
-		line = strings.TrimSpace(line)
 
 		if dataMode {
-			if line == "." {
+			// strip trailing CRLF/LF without destroying leading spaces or empty lines
+			cleanLine := strings.TrimRight(line, "\r\n")
+
+			if cleanLine == "." {
 				// save email to DB
 				if err := SaveEmailToDB(from, to, data.String()); err != nil {
 					fmt.Println("Failed to save email to DB:", err)
@@ -84,10 +86,17 @@ func HandleSMTP(conn net.Conn, requireAuth bool) {
 				dataMode = false
 				data.Reset()
 			} else {
-				data.WriteString(line + "\n")
+				// handle SMTP dot-stuffing (RFC 5321: lines starting with '..' lose one '.')
+				if strings.HasPrefix(cleanLine, "..") {
+					cleanLine = cleanLine[1:]
+				}
+				data.WriteString(cleanLine + "\n")
 			}
 			continue
 		}
+
+		// only trim command lines outside DATA mode
+		line = strings.TrimSpace(line)
 
 		parts := strings.Fields(line)
 		if len(parts) == 0 {
@@ -101,7 +110,6 @@ func HandleSMTP(conn net.Conn, requireAuth bool) {
 		switch cmd {
 		case "EHLO":
 			writeLine("250-Hello")
-			// only advertise AUTH on the submission port (or both if desired, but Port 25 doesn't need it for Gmail)
 			writeLine("250 AUTH LOGIN")
 		case "HELO":
 			writeLine("250 Hello")
@@ -140,7 +148,6 @@ func HandleSMTP(conn net.Conn, requireAuth bool) {
 				username := strings.TrimSpace(string(userBytes))
 				password := strings.TrimSpace(string(passBytes))
 
-				// authentication
 				ok, err := AuthenticateUser(username, password)
 				if err == nil && ok {
 					isAuthenticated = true
@@ -154,7 +161,6 @@ func HandleSMTP(conn net.Conn, requireAuth bool) {
 			}
 
 		case "MAIL":
-			// If this port requires authentication (Port 587), enforce it here.
 			if requireAuth && !isAuthenticated {
 				writeLine("530 5.7.0 Authentication required")
 				break
@@ -183,8 +189,6 @@ func HandleSMTP(conn net.Conn, requireAuth bool) {
 				parsedTo := strings.TrimSpace(strings.TrimPrefix(arg, "TO:"))
 				to = strings.Trim(parsedTo, "<>")
 
-				// If coming in via Port 25 unauthenticated, prevent Open Relaying
-				// by checking if the recipient belongs to your local domain.
 				if !requireAuth && !isLocalDomain(to) {
 					writeLine("550 5.7.1 Relaying denied")
 					break
