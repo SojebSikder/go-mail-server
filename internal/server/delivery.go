@@ -41,7 +41,7 @@ func SendToExternalMX(from, to, rawMessage string) error {
 	defer client.Quit()
 
 	// complete SMTP handshake sequence
-	if err := client.Hello(config.DOMAIN); err != nil {
+	if err := client.Hello(config.ALLOWED_SENDER_DOMAIN); err != nil {
 		return fmt.Errorf("EHLO failed: %w", err)
 	}
 	if err := client.Mail(from); err != nil {

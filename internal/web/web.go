@@ -143,7 +143,7 @@ func StartWebServer(ctx context.Context, port string) {
 		// Ensure local domain formatting for sender
 		fromAddr := username
 		if !strings.Contains(fromAddr, "@") {
-			fromAddr = username + "@" + config.DOMAIN
+			fromAddr = username + "@" + config.ALLOWED_SENDER_DOMAIN
 		}
 
 		// format RFC 822 compliant raw MIME body
@@ -171,7 +171,7 @@ func StartWebServer(ctx context.Context, port string) {
 		recipientDomain := strings.ToLower(recipientParts[1])
 
 		// route: Internal domain vs External internet delivery
-		if recipientDomain == config.DOMAIN {
+		if recipientDomain == config.ALLOWED_SENDER_DOMAIN {
 			// Local recipient -> deliver directly to local engine
 			err := sendDirectViaSMTP("127.0.0.1:25", fromAddr, to, rawEmail)
 			if err != nil {
