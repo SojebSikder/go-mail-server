@@ -32,8 +32,11 @@
                 {{range .Emails}}
                 <a href="/emails?id={{.ID}}" class="email-item">
                     <span class="sender">{{.Sender}}</span>
-                    <span class="body-preview">{{.Body}}</span>
-                    <span class="time">{{.ReceivedAt.Format "Jan 02, 15:04"}}</span>
+                    <span class="subject"><strong>{{.Subject}}</strong></span>
+                    <span class="body-preview">
+                        {{if .TextBody}}{{.TextBody}}{{else}}HTML Content{{end}}
+                    </span>
+                    <span class="time">{{.ReceivedAt}}</span>
                 </a>
                 {{else}}
                 <div class="empty-state">

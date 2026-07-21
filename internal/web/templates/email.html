@@ -3,25 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>View Email - Smail</title>
+    <title>{{.Email.Subject}} - Smail</title>
     <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        .message-subject {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text-main, #111827);
+        }
+        .message-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 0.9rem;
+            color: var(--text-muted, #4b5563);
+            border-bottom: 1px solid var(--border, #e5e7eb);
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+        }
+        .message-body {
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+        .html-wrapper {
+            width: 100%;
+            overflow-x: auto;
+        }
+        .plain-text {
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: inherit;
+            margin: 0;
+        }
+    </style>
 </head>
 <body>
     <div class="app-container">
         <main class="main-content">
-            <a href="/emails" class="btn btn-link" style="margin-bottom: 20px;">← Back to Inbox</a>
+            <a href="/emails" class="btn btn-link" style="margin-bottom: 20px; display: inline-block;">← Back to Inbox</a>
 
             <div class="card message-card">
-                <h1 class="page-title" style="margin-bottom: 16px;">Message Details</h1>
+                <h1 class="message-subject">{{.Email.Subject}}</h1>
 
                 <div class="message-meta">
                     <div><strong>From:</strong> {{.Email.Sender}}</div>
-                    <div><strong>Date:</strong> {{.Email.ReceivedAt.Format "Jan 02, 2006 at 15:04:05"}}</div>
+                    <div><strong>To:</strong> {{.Email.Receiver}}</div>
+                    <div><strong>Date:</strong> {{.Email.ReceivedAt}}</div>
                 </div>
 
-                <div class="message-body">{{.Email.Body}}</div>
+                <div class="message-body">
+                    {{if .Email.HasHTML}}
+                        <div class="html-wrapper">
+                            {{.Email.HTMLBody}}
+                        </div>
+                    {{else}}
+                        <pre class="plain-text">{{.Email.TextBody}}</pre>
+                    {{end}}
+                </div>
 
-                <form action="/delete?id={{.Email.ID}}" method="POST" style="border-top: 1px solid var(--border); padding-top: 20px;">
+                <form action="/delete?id={{.Email.ID}}" method="POST" style="border-top: 1px solid var(--border, #e5e7eb); padding-top: 20px;">
                     <button type="submit" class="btn btn-danger">Delete Message</button>
                 </form>
             </div>

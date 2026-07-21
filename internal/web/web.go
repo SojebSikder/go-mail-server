@@ -117,7 +117,18 @@ func StartWebServer(ctx context.Context, port string) {
 				http.Error(w, "Email not found", http.StatusNotFound)
 				return
 			}
-			tmpl.ExecuteTemplate(w, "email.html", map[string]interface{}{"Email": email, "User": username})
+
+			// parse raw MIME email body
+			parsed := server.ParseMIME(email.Body)
+			parsed.ID = email.ID
+			parsed.Sender = email.Sender
+			parsed.Receiver = email.Receiver
+			parsed.ReceivedAt = email.ReceivedAt.Format("Jan 02, 2006 15:04")
+
+			tmpl.ExecuteTemplate(w, "email.html", map[string]interface{}{
+				"Email": parsed,
+				"User":  username,
+			})
 		} else {
 			page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 			if page < 1 {
@@ -126,9 +137,21 @@ func StartWebServer(ctx context.Context, port string) {
 			limit := 20
 			offset := (page - 1) * limit
 
-			emails, _ := server.GetEmailsFor(username, offset, limit)
+			rawEmails, _ := server.GetEmailsFor(username, offset, limit)
+
+			// process email previews and subjects for Inbox view
+			var parsedEmails []*server.ParsedEmail
+			for _, email := range rawEmails {
+				p := server.ParseMIME(email.Body)
+				p.ID = email.ID
+				p.Sender = email.Sender
+				p.Receiver = email.Receiver
+				p.ReceivedAt = email.ReceivedAt.Format("Jan 02, 15:04")
+				parsedEmails = append(parsedEmails, p)
+			}
+
 			tmpl.ExecuteTemplate(w, "inbox.html", map[string]interface{}{
-				"Emails":   emails,
+				"Emails":   parsedEmails,
 				"User":     username,
 				"NextPage": page + 1,
 			})
