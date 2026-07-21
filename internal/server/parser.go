@@ -29,10 +29,13 @@ func ParseMIME(raw string) *ParsedEmail {
 		Subject: "(No Subject)",
 	}
 
-	msg, err := mail.ReadMessage(strings.NewReader(raw))
+	// clean leading and trailing whitespace to prevent ReadMessage from treating headers as body
+	cleanRaw := strings.TrimSpace(raw)
+
+	msg, err := mail.ReadMessage(strings.NewReader(cleanRaw))
 	if err != nil {
-		// Fallback for non-MIME or raw plain text messages
-		parsed.TextBody = raw
+		// fallback for non-MIME or raw plain text messages
+		parsed.TextBody = cleanRaw
 		return parsed
 	}
 
@@ -48,6 +51,10 @@ func ParseMIME(raw string) *ParsedEmail {
 
 	// parse Body (Single-part or Multi-part)
 	contentType := msg.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "text/plain; charset=utf-8"
+	}
+
 	mediaType, params, err := mime.ParseMediaType(contentType)
 	if err != nil || !strings.HasPrefix(mediaType, "multipart/") {
 		// single part message
@@ -62,25 +69,39 @@ func ParseMIME(raw string) *ParsedEmail {
 	}
 
 	// handle multipart MIME
-	mr := multipart.NewReader(msg.Body, params["boundary"])
+	boundary, ok := params["boundary"]
+	if !ok {
+		// fallback if boundary key missing
+		body, _ := io.ReadAll(msg.Body)
+		parsed.TextBody = string(body)
+		return parsed
+	}
+
+	mr := multipart.NewReader(msg.Body, boundary)
 	for {
 		part, err := mr.NextPart()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
+		if err == io.EOF || err != nil {
 			break
 		}
 
-		partMediaType, _, _ := mime.ParseMediaType(part.Header.Get("Content-Type"))
+		partContentType := part.Header.Get("Content-Type")
+		if partContentType == "" {
+			partContentType = "text/plain"
+		}
+
+		partMediaType, _, _ := mime.ParseMediaType(partContentType)
 		partEncoding := part.Header.Get("Content-Transfer-Encoding")
 		decodedContent := decodeBody(part, partEncoding)
 
-		if strings.HasPrefix(partMediaType, "text/html") && !parsed.HasHTML {
-			parsed.HTMLBody = template.HTML(decodedContent)
-			parsed.HasHTML = true
-		} else if strings.HasPrefix(partMediaType, "text/plain") && parsed.TextBody == "" {
-			parsed.TextBody = decodedContent
+		if strings.HasPrefix(partMediaType, "text/html") {
+			if !parsed.HasHTML {
+				parsed.HTMLBody = template.HTML(decodedContent)
+				parsed.HasHTML = true
+			}
+		} else if strings.HasPrefix(partMediaType, "text/plain") {
+			if parsed.TextBody == "" {
+				parsed.TextBody = decodedContent
+			}
 		}
 	}
 
@@ -99,5 +120,5 @@ func decodeBody(r io.Reader, encoding string) string {
 
 	buf := new(bytes.Buffer)
 	_, _ = buf.ReadFrom(reader)
-	return buf.String()
+	return strings.TrimSpace(buf.String())
 }
