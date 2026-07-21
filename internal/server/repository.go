@@ -95,3 +95,13 @@ func GetEmailByIdAndUser(id int, user string) (*Email, error) {
 func DeleteEmailByIdAndUser(id int, user string) error {
 	return DB.Where("id = ? AND receiver = ?", id, user).Delete(&Email{}).Error
 }
+
+func SaveOutboundEmail(from, to, body string) error {
+	email := Email{
+		Sender:     from,
+		Receiver:   to,
+		Body:       body,
+		ReceivedAt: time.Now(),
+	}
+	return DB.Create(&email).Error
+}

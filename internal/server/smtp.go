@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net"
+	"sojebsikder/go-smtp-server/internal/config"
 	"strings"
 )
 
@@ -229,5 +230,5 @@ func isLocalDomain(recipient string) bool {
 	}
 	domain := strings.ToLower(parts[1])
 
-	return domain == "jabokivabe.com"
+	return domain == config.DOMAIN
 }

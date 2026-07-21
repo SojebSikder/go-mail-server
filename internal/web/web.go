@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"sojebsikder/go-smtp-server/internal/config"
 	server "sojebsikder/go-smtp-server/internal/server"
 )
 
@@ -124,7 +125,7 @@ func StartWebServer(ctx context.Context, port string) {
 		}
 
 		username, _ := r.Context().Value(userContextKey).(string)
-		to := r.FormValue("to")
+		to := strings.TrimSpace(r.FormValue("to"))
 		subject := r.FormValue("subject")
 		body := r.FormValue("body")
 
@@ -142,24 +143,56 @@ func StartWebServer(ctx context.Context, port string) {
 		// Ensure local domain formatting for sender
 		fromAddr := username
 		if !strings.Contains(fromAddr, "@") {
-			fromAddr = username + "@jabokivabe.com"
+			fromAddr = username + "@" + config.DOMAIN
 		}
 
-		// Format RFC 822 compliant raw MIME body
+		// format RFC 822 compliant raw MIME body
 		rawEmail := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
 			fromAddr, to, subject, body)
 
-		// Dispatch email internally using local port 25 or 587 listener
-		err := sendDirectViaSMTP("127.0.0.1:25", fromAddr, to, rawEmail)
-		if err != nil {
+		// save a copy of sent mail locally
+		if err := server.SaveOutboundEmail(fromAddr, to, rawEmail); err != nil {
+			log.Printf("Warning: failed to save outbound copy to DB: %v", err)
+		}
+
+		// determine destination domain
+		recipientParts := strings.Split(to, "@")
+		if len(recipientParts) != 2 {
 			tmpl.ExecuteTemplate(w, "compose.html", map[string]interface{}{
 				"User":    username,
-				"Error":   "Failed to send email: " + err.Error(),
+				"Error":   "Invalid email address provided.",
 				"To":      to,
 				"Subject": subject,
 				"Body":    body,
 			})
 			return
+		}
+
+		recipientDomain := strings.ToLower(recipientParts[1])
+
+		// route: Internal domain vs External internet delivery
+		if recipientDomain == config.DOMAIN {
+			// Local recipient -> deliver directly to local engine
+			err := sendDirectViaSMTP("127.0.0.1:25", fromAddr, to, rawEmail)
+			if err != nil {
+				tmpl.ExecuteTemplate(w, "compose.html", map[string]interface{}{
+					"User":    username,
+					"Error":   "Failed to deliver local email: " + err.Error(),
+					"To":      to,
+					"Subject": subject,
+					"Body":    body,
+				})
+				return
+			}
+		} else {
+			// External recipient (e.g. gmail.com) -> Dispatch via MX Lookup asynchronously
+			go func(from, recipient, payload string) {
+				if err := server.SendToExternalMX(from, recipient, payload); err != nil {
+					log.Printf("[MTA ERROR] Outbound delivery to %s failed: %v", recipient, err)
+				} else {
+					log.Printf("[MTA SUCCESS] Successfully delivered outbound email to %s", recipient)
+				}
+			}(fromAddr, to, rawEmail)
 		}
 
 		http.Redirect(w, r, "/emails", http.StatusSeeOther)
