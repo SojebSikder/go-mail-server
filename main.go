@@ -18,7 +18,7 @@ var version = "0.1.0"
 
 func showUsage() {
 	fmt.Println("Usage:")
-	fmt.Println("  smail start [--smtp-port PORT] [--imap-port PORT] [--web-port PORT]")
+	fmt.Println("  smail start [--smtp-port PORT] [--submission-port PORT] [--imap-port PORT] [--web-port PORT]")
 	fmt.Println("  smail testsmtp")
 	fmt.Println("  smail testimap")
 	fmt.Println()
@@ -26,9 +26,10 @@ func showUsage() {
 	fmt.Println("  smail version")
 	fmt.Println()
 	fmt.Println("Options:")
-	fmt.Println("  --smtp-port PORT   Specify the SMTP server port (default: 2525)")
-	fmt.Println("  --imap-port PORT   Specify the IMAP server port (default: 1430)")
-	fmt.Println("  --web-port PORT    Specify the web server port (default: 8080)")
+	fmt.Println("  --smtp-port PORT        Specify inbound SMTP port (default: 25)")
+	fmt.Println("  --submission-port PORT  Specify client submission SMTP port with Auth (default: 587)")
+	fmt.Println("  --imap-port PORT        Specify the IMAP server port (default: 1430)")
+	fmt.Println("  --web-port PORT         Specify the web server port (default: 8080)")
 }
 
 func main() {
@@ -41,20 +42,23 @@ func main() {
 
 	switch cmd {
 	case "start":
-		smtpPort := "2525"
+		smtpPort := "25"
+		submissionPort := "587"
 		imapPort := "1430"
 		webPort := "8080"
 
 		fs := flag.NewFlagSet("start", flag.ExitOnError)
-		fs.StringVar(&smtpPort, "smtp-port", smtpPort, "Specify the SMTP server port")
+		fs.StringVar(&smtpPort, "smtp-port", smtpPort, "Specify the inbound SMTP server port")
+		fs.StringVar(&submissionPort, "submission-port", submissionPort, "Specify the authenticated submission SMTP server port")
 		fs.StringVar(&imapPort, "imap-port", imapPort, "Specify the IMAP server port")
 		fs.StringVar(&webPort, "web-port", webPort, "Specify the web server port")
 		fs.Parse(os.Args[2:])
 
 		handleServer(&Config{
-			SMTPPort: smtpPort,
-			IMAPPort: imapPort,
-			WebPort:  webPort,
+			SMTPPort:       smtpPort,
+			SubmissionPort: submissionPort,
+			IMAPPort:       imapPort,
+			WebPort:        webPort,
 		})
 	case "testsmtp":
 		withAttachment := false
@@ -78,19 +82,22 @@ func main() {
 }
 
 type Config struct {
-	SMTPPort string
-	IMAPPort string
-	WebPort  string
+	SMTPPort       string
+	SubmissionPort string
+	IMAPPort       string
+	WebPort        string
 }
 
 func handleServer(config *Config) {
-	var smtpPort, imapPort, webPort string
+	var smtpPort, submissionPort, imapPort, webPort string
 	if config == nil {
-		smtpPort = "2525"
+		smtpPort = "25"
+		submissionPort = "587"
 		imapPort = "1430"
 		webPort = "8080"
 	} else {
 		smtpPort = config.SMTPPort
+		submissionPort = config.SubmissionPort
 		imapPort = config.IMAPPort
 		webPort = config.WebPort
 	}
@@ -104,14 +111,21 @@ func handleServer(config *Config) {
 
 	var wg sync.WaitGroup
 
-	// Start SMTP server
+	// start Inbound SMTP Server (Port 25 - Auth optional/disabled, relay restricted)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		server.CreateSMTPConnection(ctx, smtpPort)
+		server.CreateSMTPConnection(ctx, smtpPort, false)
 	}()
 
-	// Start IMAP server on a different port
+	// start Submission SMTP Server (Port 587 - Auth required)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		server.CreateSMTPConnection(ctx, submissionPort, true)
+	}()
+
+	// start IMAP server
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -129,8 +143,7 @@ func handleServer(config *Config) {
 	<-ctx.Done()
 	println("Shutting down servers...")
 
-	// wait for all goroutines to finish
+	// Wait for all goroutines to finish
 	wg.Wait()
 	println("Servers shut down gracefully.")
-
 }

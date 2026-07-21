@@ -7,6 +7,7 @@ services:
       - "8080:8080"
       - "25:25"
       - "143:143"
+      - "587:587"
     volumes:
       - mail_data:/mail_data
     extra_hosts:

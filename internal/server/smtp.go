@@ -9,12 +9,22 @@ import (
 	"strings"
 )
 
-func CreateSMTPConnection(ctx context.Context, smtpPort string) {
+// StartSMTPListeners spins up both Port 25 (Inbound) and Port 587 (Submission)
+func StartSMTPListeners(ctx context.Context) {
+	// Port 25: Public Inbound (No mandatory auth upfront, open relay protected)
+	go CreateSMTPConnection(ctx, "25", false)
+
+	// Port 587: Client Submission (Strict authentication required)
+	go CreateSMTPConnection(ctx, "587", true)
+}
+
+func CreateSMTPConnection(ctx context.Context, smtpPort string, requireAuth bool) {
 	ln, err := net.Listen("tcp", ":"+smtpPort)
 	if err != nil {
-		panic("failed to start SMTP server: " + err.Error())
+		fmt.Printf("Failed to start SMTP server on port %s: %v\n", smtpPort, err)
+		return
 	}
-	fmt.Println("SMTP server listening on port", smtpPort)
+	fmt.Printf("SMTP server listening on port %s (Auth Required: %v)\n", smtpPort, requireAuth)
 
 	go func() {
 		<-ctx.Done()
@@ -32,11 +42,11 @@ func CreateSMTPConnection(ctx context.Context, smtpPort string) {
 				continue
 			}
 		}
-		go HandleSMTP(conn)
+		go HandleSMTP(conn, requireAuth)
 	}
 }
 
-func HandleSMTP(conn net.Conn) {
+func HandleSMTP(conn net.Conn, requireAuth bool) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
@@ -68,7 +78,7 @@ func HandleSMTP(conn net.Conn) {
 					fmt.Println("Failed to save email to DB:", err)
 					writeLine("451 Requested action aborted: local error in processing")
 				} else {
-					fmt.Printf("=== New Email Saved ===\nFrom: %s\nTo: %s\n", from, to)
+					fmt.Printf("=== New Email Saved (Port Mode - AuthReq: %v) ===\nFrom: %s\nTo: %s\n", requireAuth, from, to)
 					writeLine("250 OK: Message accepted")
 				}
 				dataMode = false
@@ -91,6 +101,7 @@ func HandleSMTP(conn net.Conn) {
 		switch cmd {
 		case "EHLO":
 			writeLine("250-Hello")
+			// only advertise AUTH on the submission port (or both if desired, but Port 25 doesn't need it for Gmail)
 			writeLine("250 AUTH LOGIN")
 		case "HELO":
 			writeLine("250 Hello")
@@ -143,7 +154,8 @@ func HandleSMTP(conn net.Conn) {
 			}
 
 		case "MAIL":
-			if !isAuthenticated {
+			// If this port requires authentication (Port 587), enforce it here.
+			if requireAuth && !isAuthenticated {
 				writeLine("530 5.7.0 Authentication required")
 				break
 			}
@@ -151,8 +163,7 @@ func HandleSMTP(conn net.Conn) {
 			if strings.HasPrefix(strings.ToUpper(arg), "FROM:") {
 				parsedFrom := strings.TrimSpace(strings.TrimPrefix(arg, "FROM:"))
 				parsedFrom = strings.Trim(parsedFrom, "<>")
-				// set sender to logged-in user if unspecified
-				if parsedFrom == "" {
+				if parsedFrom == "" && isAuthenticated {
 					from = loggedInUser
 				} else {
 					from = parsedFrom
@@ -163,7 +174,7 @@ func HandleSMTP(conn net.Conn) {
 			}
 
 		case "RCPT":
-			if !isAuthenticated {
+			if requireAuth && !isAuthenticated {
 				writeLine("530 5.7.0 Authentication required")
 				break
 			}
@@ -171,13 +182,21 @@ func HandleSMTP(conn net.Conn) {
 			if strings.HasPrefix(strings.ToUpper(arg), "TO:") {
 				parsedTo := strings.TrimSpace(strings.TrimPrefix(arg, "TO:"))
 				to = strings.Trim(parsedTo, "<>")
+
+				// If coming in via Port 25 unauthenticated, prevent Open Relaying
+				// by checking if the recipient belongs to your local domain.
+				if !requireAuth && !isLocalDomain(to) {
+					writeLine("550 5.7.1 Relaying denied")
+					break
+				}
+
 				writeLine("250 OK")
 			} else {
 				writeLine("500 Syntax error in RCPT TO")
 			}
 
 		case "DATA":
-			if !isAuthenticated {
+			if requireAuth && !isAuthenticated {
 				writeLine("530 5.7.0 Authentication required")
 				break
 			}
@@ -196,4 +215,15 @@ func HandleSMTP(conn net.Conn) {
 			writeLine("502 Command not implemented")
 		}
 	}
+}
+
+// Helper function to prevent your server from acting as an open spam relay on port 25
+func isLocalDomain(recipient string) bool {
+	parts := strings.Split(recipient, "@")
+	if len(parts) != 2 {
+		return false
+	}
+	domain := strings.ToLower(parts[1])
+
+	return domain == "jabokivabe.com"
 }
