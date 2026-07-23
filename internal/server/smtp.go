@@ -230,5 +230,5 @@ func isLocalDomain(recipient string) bool {
 	}
 	domain := strings.ToLower(parts[1])
 
-	return domain == config.ALLOWED_SENDER_DOMAIN
+	return domain == config.GetAllowedSenderDomain()
 }

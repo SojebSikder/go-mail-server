@@ -1,5 +1,11 @@
 package config
 
-// DOMAIN is the email domain for the application, change this to your domain
-// const ALLOWED_SENDER_DOMAINS = "jabokivabe.com"
-const ALLOWED_SENDER_DOMAIN = "jabokivabe.com"
+import "os"
+
+func GetAllowedSenderDomain() string {
+	domain := os.Getenv("ALLOWED_SENDER_DOMAIN")
+	if domain == "" {
+		return "jabokivabe.com" // default fallback
+	}
+	return domain
+}

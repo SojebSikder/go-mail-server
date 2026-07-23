@@ -1,13 +1,15 @@
 services:
   smail:
-    image: ghcr.io/sojebsikder/smail:latest
-    # image: smail:latest
+    # image: ghcr.io/sojebsikder/smail:latest
+    image: smail:latest
     container_name: smail
     ports:
       - "8080:8080"
       - "25:25"
       - "143:143"
       - "587:587"
+    environment:
+      - ALLOWED_SENDER_DOMAIN=jabokivabe.com
     volumes:
       - mail_data:/mail_data
     extra_hosts:
